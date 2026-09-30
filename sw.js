@@ -2,7 +2,7 @@
    Guarda o "esqueleto" do app no aparelho para abrir sem internet.
    Os dados das visitas NÃO passam por aqui: ficam no cache offline do Firestore.
    Ao publicar uma nova versão do index.html, aumente o número em VERSION. */
-const VERSION = 'campo-sst-v2';
+const VERSION = 'campo-sst-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -17,7 +17,12 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  // Cada arquivo é guardado separadamente: se um falhar (ex.: script externo), a instalação não é abortada
+  e.waitUntil(
+    caches.open(VERSION)
+      .then(c => Promise.all(APP_SHELL.map(u => c.add(u).catch(err => console.warn('Não guardado no cache:', u, err)))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
