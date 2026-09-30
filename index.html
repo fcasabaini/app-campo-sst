@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Levantamento de Campo — SST | FCA & Sabaini</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#161e2e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Campo SST">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+/* Layout: assistente em etapas (Visita → Setores → Funções → Ambientes → GHE), uma tela por vez, barra fixa com Voltar/Salvar/Próximo */
+:root{
+  color-scheme:light;
+  --ink:#1c2430;
+  --ink-soft:#4a5568;
+  --muted:#8a8171;
+  --paper:#f6f4ef;
+  --panel:#ffffff;
+  --panel-2:#fbfaf6;
+  --line:#d9d4c7;
+  --field:#c3bca9;
+  --field-bg:#fffdf9;
+  --navy:#233047;
+  --navy-deep:#161e2e;
+  --amber:#e0a02c;
+  --amber-deep:#a97314;
+  --amber-ink:#3a2a06;
+  --tag-bg:#eee6d3;
+  --tag-ink:#5c4c1f;
+  --note-bg:#fff4dc;
+  --note-line:#e8c77a;
+  --note-ink:#5c4210;
+  --ok:#2f7a4f;
+  --ok-bg:#e3f1e8;
+  --danger:#b3452f;
+  --danger-bg:#f8e4de;
+  --radius:3px;
+  --pick-bg:#e9edf3;
+  --pick-line:#9aa6b8;
+  --font-body:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  --font-display:Georgia,'Times New Roman',serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+[hidden]{display:none!important;}
+body{
+  background:var(--paper);color:var(--ink);font-family:var(--font-body);
+  font-size:15px;line-height:1.45;padding-bottom:96px;
+}
+h1,h2,h3{font-family:var(--font-display);font-weight:700;color:var(--navy-deep);margin:0 0 4px;text-wrap:balance;}
+.topbar{
+  background:var(--navy-deep);color:#eee6d3;padding:12px 16px;position:sticky;
+  top:env(safe-area-inset-top,0px);z-index:50;display:flex;align-items:center;
+  justify-content:space-between;gap:10px;border-bottom:3px solid var(--amber);
+}
+.topbar .brand{font-size:12px;letter-spacing:.3px;color:#b7c0d1;}
+.topbar h1{color:#fff;font-size:17px;margin:0;font-family:var(--font-body);font-weight:600;}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+.topbar button{background:none;border:1px solid #3a4864;color:#cfd6e3;padding:6px 10px;border-radius:var(--radius);font-size:12px;cursor:pointer;}
+.net-status{font-size:11px;padding:3px 8px;border-radius:10px;white-space:nowrap;}
+.net-status.online{background:#1f4d35;color:#bfe6cf;}
+.net-status.offline{background:#6b2a1d;color:#f5d3c9;}
+.login{max-width:380px;margin:48px auto;}
+.login-error{color:var(--danger);font-size:13px;margin-top:8px;min-height:18px;}
+.user-line{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);margin-bottom:12px;}
+.user-line button{background:none;border:none;color:var(--ink-soft);text-decoration:underline;cursor:pointer;font-size:13px;padding:0;font-family:inherit;}
+@media print{
+  body{background:#fff;padding:0;}
+  body > *:not(#screen-report){display:none!important;}
+  #screen-report{display:block!important;padding:0;max-width:none;}
+  #screen-report > :not(#reportArea){display:none!important;}
+  .report{border:none;padding:0;}
+  .pr-item,.pr-table tr{break-inside:avoid;}
+}
+.wrap{max-width:760px;margin:0 auto;padding:16px;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
+.card.sub{background:var(--panel-2);}
+.section-title{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.section-title h2{font-size:17px;}
+.section-title h3{font-size:15px;}
+.count-badge{background:var(--navy);color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-variant-numeric:tabular-nums;}
+label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin:10px 0 3px;}
+input[type=text],input[type=tel],input[type=email],input[type=number],input[type=password],textarea,select{
+  width:100%;padding:9px 10px;border:1px solid var(--field);border-radius:var(--radius);
+  font-size:15px;background:var(--field-bg);color:var(--ink);font-family:inherit;
+}
+input:focus,textarea:focus,select:focus,button:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-offset:1px;}
+textarea{resize:vertical;min-height:60px;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 10px;}
+.row4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0 10px;}
+@media (max-width:560px){.row2,.row3,.row4{grid-template-columns:1fr;}}
+.helper{font-size:12px;color:var(--muted);font-weight:400;}
+.btn{display:inline-block;padding:10px 16px;border-radius:var(--radius);border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:10px;}
+.btn-primary{background:var(--navy);color:#fff;}
+.btn-amber{background:var(--amber);color:var(--amber-ink);}
+.btn-ghost{background:none;border:1px solid var(--field);color:var(--ink-soft);}
+.btn-block{width:100%;}
+.btn-danger{background:none;color:var(--danger);border:1px solid var(--danger);padding:4px 9px;font-size:12px;border-radius:var(--radius);cursor:pointer;flex:none;}
+.item-list{margin-top:10px;}
+.item{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;font-size:13.5px;}
+.item-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.item-top > div{min-width:0;}
+.item-title{font-weight:700;color:var(--navy-deep);}
+.item-meta{color:var(--ink-soft);margin-top:2px;overflow-wrap:anywhere;}
+.tag{display:inline-block;background:var(--tag-bg);color:var(--tag-ink);font-size:11px;padding:1px 7px;border-radius:9px;margin:2px 4px 0 0;}
+.tag.ok{background:var(--ok-bg);color:var(--ok);}
+.tag.warn{background:var(--danger-bg);color:var(--danger);}
+.empty-note{color:var(--muted);font-size:13px;font-style:italic;padding:6px 0;margin:0;}
+.test-note{background:var(--note-bg);border:1px solid var(--note-line);color:var(--note-ink);font-size:13px;padding:10px 12px;border-radius:var(--radius);margin-bottom:14px;}
+.screen{display:none;}
+.screen.active{display:block;}
+.step{display:none;}
+.step.active{display:block;}
+
+/* Stepper */
+.stepper{display:flex;gap:4px;overflow-x:auto;padding:10px 16px;background:var(--paper);position:sticky;top:calc(env(safe-area-inset-top,0px) + 62px);z-index:45;border-bottom:1px solid var(--line);}
+.stepper button{flex:none;display:flex;align-items:center;gap:6px;font-size:12.5px;padding:6px 10px;border-radius:14px;border:1px solid var(--field);background:var(--field-bg);color:var(--ink-soft);cursor:pointer;font-family:inherit;}
+.stepper button .n{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--tag-bg);color:var(--tag-ink);font-size:11px;font-weight:700;}
+.stepper button.active{background:var(--navy);border-color:var(--navy);color:#fff;}
+.stepper button.active .n{background:var(--amber);color:var(--amber-ink);}
+.stepper button.done .n{background:var(--ok);color:#fff;}
+
+/* Chips */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.chip{border:1px solid var(--field);background:var(--field-bg);padding:6px 11px;border-radius:16px;font-size:13px;cursor:pointer;user-select:none;color:var(--ink-soft);font-family:inherit;}
+.chip.sel{background:var(--navy);border-color:var(--navy);color:#fff;}
+.chip-group-label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:10px 0 2px;}
+
+/* Segmentado */
+.seg{display:inline-flex;border:1px solid var(--field);border-radius:var(--radius);overflow:hidden;flex:none;}
+.seg button{border:none;background:var(--field-bg);color:var(--ink-soft);padding:6px 10px;font-size:12.5px;cursor:pointer;font-family:inherit;}
+.seg button + button{border-left:1px solid var(--field);}
+.seg button.on{background:var(--navy);color:#fff;}
+.seg button.on[data-v="sim"]{background:var(--danger);}
+.seg button.on[data-v="nao"]{background:var(--ok);}
+
+/* Switch AEP */
+.switch-row{display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px 12px;border:1px dashed var(--field);border-radius:var(--radius);background:var(--panel-2);cursor:pointer;}
+.switch-row input{width:20px;height:20px;accent-color:var(--navy);flex:none;}
+.switch-row span{font-size:14px;font-weight:600;color:var(--navy-deep);}
+.aep-box{margin-top:10px;border:1px solid var(--line);border-radius:var(--radius);padding:12px;background:var(--panel);}
+.aep-item{padding:9px 0;border-bottom:1px solid var(--tag-bg);}
+.aep-item:last-of-type{border-bottom:none;}
+.aep-head{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.aep-head .q{font-size:13.5px;min-width:0;}
+.aep-head .q small{display:block;color:var(--muted);font-size:11.5px;}
+.aep-obs{margin-top:6px;}
+@media (max-width:480px){.aep-head{flex-direction:column;align-items:flex-start;}}
+
+.checkrow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--tag-bg);font-size:14px;font-weight:400;color:var(--ink);margin:0;}
+.checkrow:last-child{border-bottom:none;}
+.checkrow input{width:18px;height:18px;accent-color:var(--navy);}
+
+.bottombar{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));display:flex;gap:10px;z-index:40;}
+.bottombar .btn{flex:1;text-align:center;margin:0;}
+.toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--navy-deep);color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:100;max-width:90vw;text-align:center;}
+.toast.show{opacity:1;}
+@media (prefers-reduced-motion:reduce){.toast{transition:none;}}
+
+/* Relatório */
+.report{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;}
+.pr-h1{font-family:var(--font-display);font-size:22px;color:var(--navy-deep);}
+.pr-sub{color:var(--ink-soft);font-size:12px;margin-bottom:10px;}
+.pr-section{margin-top:18px;border-top:2px solid var(--navy);padding-top:8px;}
+.pr-section h3{font-family:var(--font-body);font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--navy);}
+.pr-item{border-bottom:1px solid var(--line);padding:7px 0;font-size:13px;overflow-wrap:anywhere;}
+.pr-item b{color:var(--navy-deep);}
+.pr-sublist{margin:4px 0 0 0;padding-left:18px;}
+.pr-sublist li{margin:2px 0;}
+.pr-table-wrap{overflow-x:auto;margin-top:6px;}
+.pr-table{border-collapse:collapse;font-size:12.5px;width:100%;font-variant-numeric:tabular-nums;}
+.pr-table th,.pr-table td{border:1px solid var(--line);padding:4px 6px;text-align:left;}
+.pr-table th{background:var(--tag-bg);color:var(--tag-ink);font-weight:600;}
+.pr-table td.n{text-align:center;}
+
+/* Questionário do funcionário */
+.btn-quest{background:none;border:1px solid var(--navy);color:var(--navy);padding:5px 10px;font-size:12px;border-radius:var(--radius);cursor:pointer;margin-top:6px;font-family:inherit;}
+.worker-head{background:var(--navy-deep);color:#fff;padding:18px 16px calc(18px + 0px);border-bottom:3px solid var(--amber);}
+.worker-head h2{color:#fff;font-size:20px;}
+.worker-head p{margin:4px 0 0;color:#cfd6e3;font-size:14px;}
+.wq{padding:12px 0;border-bottom:1px solid var(--tag-bg);}
+.wq:last-child{border-bottom:none;}
+.wq .q{font-size:15px;margin-bottom:8px;}
+.scale{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.scale button,.yn button{border:1px solid var(--field);background:var(--field-bg);color:var(--ink);padding:10px 4px;font-size:13.5px;border-radius:var(--radius);cursor:pointer;font-family:inherit;}
+.scale button.on,.yn button.on{background:var(--pick-bg);border-color:var(--pick-line);color:var(--ink);}
+@media (max-width:420px){.scale{grid-template-columns:1fr 1fr;}}
+.body-row{display:grid;grid-template-columns:1fr auto auto;gap:8px 10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--tag-bg);}
+.body-row:last-child{border-bottom:none;}
+.body-row .r{font-size:15px;min-width:0;}
+.yn{display:flex;gap:4px;}
+.yn button{padding:8px 10px;min-width:48px;}
+.body-cols{display:grid;grid-template-columns:1fr auto auto;gap:10px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding-bottom:4px;}
+.body-cols span:nth-child(2),.body-cols span:nth-child(3){width:108px;text-align:center;}
+.yn{width:108px;justify-content:center;}
+.thanks{text-align:center;padding:40px 16px;}
+.thanks h2{font-size:22px;margin-bottom:8px;}
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topbar">
+  <div>
+    <div class="brand">FCA &amp; Sabaini Engenharia</div>
+    <h1>Levantamento de Campo — SST</h1>
+  </div>
+  <div class="topbar-right">
+    <span id="netStatus" class="net-status online">Online</span>
+    <button id="btnVisitas" onclick="showAdmin()" hidden>Visitas</button>
+  </div>
+</div>
+
+<!-- ============ LOGIN ============ -->
+<div id="screen-login" class="screen wrap">
+  <form class="card login" id="loginForm">
+    <div class="section-title"><h2>Entrar</h2></div>
+    <div class="helper">Acesso restrito à equipe FCA &amp; Sabaini.</div>
+    <label for="l_email">E-mail</label><input type="email" id="l_email" autocomplete="username" required>
+    <label for="l_senha">Senha</label><input type="password" id="l_senha" autocomplete="current-password" required>
+    <button class="btn btn-primary btn-block" type="submit" id="btnLogin">Entrar</button>
+    <div class="login-error" id="loginError" role="alert"></div>
+  </form>
+</div>
+
+<!-- ============ LISTA DE VISITAS ============ -->
+<div id="screen-admin" class="screen wrap">
+  <div class="user-line"><span id="userName"></span><button type="button" onclick="logout()">Sair</button></div>
+  <div class="card">
+    <div class="section-title"><h2>Visitas salvas</h2></div>
+    <div id="visitList" class="item-list"><p class="empty-note">Carregando...</p></div>
+    <button class="btn btn-primary btn-block" onclick="startNewVisit()">+ Nova visita</button>
+  </div>
+</div>
+
+<!-- ============ FORMULÁRIO EM ETAPAS ============ -->
+<div id="screen-form" class="screen">
+  <nav class="stepper" id="stepper" aria-label="Etapas da visita"></nav>
+  <div class="wrap">
+
+    <!-- ETAPA 1: VISITA + UNIDADE -->
+    <section class="step" data-step="0">
+      <div class="card">
+        <div class="section-title"><h2>Dados da visita</h2></div>
+        <label for="v_empresa">Empresa / Cliente *</label>
+        <input type="text" id="v_empresa" placeholder="Razão social ou nome fantasia">
+        <div class="row2">
+          <div><label for="v_cnpj">CNPJ</label><input type="text" id="v_cnpj" placeholder="00.000.000/0000-00"></div>
+          <div><label for="v_data">Data da visita</label><input type="text" id="v_data" placeholder="dd/mm/aaaa"></div>
+        </div>
+        <label for="v_tecnico">Técnico responsável</label>
+        <input type="text" id="v_tecnico" placeholder="Nome do técnico">
+      </div>
+      <div class="card">
+        <div class="section-title"><h2>Unidade</h2></div>
+        <div class="row2">
+          <div><label for="u_email">E-mail</label><input type="email" id="u_email"></div>
+          <div><label for="u_telefone">Telefone</label><input type="tel" id="u_telefone"></div>
+        </div>
+        <div class="row2">
+          <div><label for="u_repLegal">Representante Legal</label><input type="text" id="u_repLegal"></div>
+          <div><label for="u_repCpf">CPF do Representante</label><input type="text" id="u_repCpf"></div>
+        </div>
+        <div class="row2">
+          <div><label for="u_emailFin">E-mail Financeiro</label><input type="email" id="u_emailFin"></div>
+          <div><label for="u_whatsFin">WhatsApp Financeiro</label><input type="tel" id="u_whatsFin"></div>
+        </div>
+        <label for="u_emailAso">E-mail para Liberação dos ASOs</label><input type="email" id="u_emailAso">
+        <label for="u_descProcessos">Descrição dos Processos <span class="helper">(opcional)</span></label>
+        <textarea id="u_descProcessos"></textarea>
+      </div>
+    </section>
+
+    <!-- ETAPA 2: SETORES -->
+    <section class="step" data-step="1">
+      <div class="card">
+        <div class="section-title"><h2>Setores</h2><span class="count-badge" id="cnt-setores">0</span></div>
+        <label for="s_setor">Setor</label><input type="text" id="s_setor" placeholder="Ex.: Cozinha">
+        <label for="s_esocial">Nome do Setor para o e-Social <span class="helper">(até 99 caracteres)</span></label>
+        <input type="text" id="s_esocial" maxlength="99">
+        <button class="btn btn-amber" onclick="addSetor()">+ Adicionar setor</button>
+        <div class="item-list" id="list-setores"></div>
+      </div>
+    </section>
+
+    <!-- ETAPA 3: FUNÇÕES (+ AEP opcional) -->
+    <section class="step" data-step="2">
+      <div class="card">
+        <div class="section-title"><h2>Funções</h2><span class="count-badge" id="cnt-funcoes">0</span></div>
+        <label for="f_funcao">Função</label><input type="text" id="f_funcao">
+        <div class="row2">
+          <div><label for="f_cargo">Cargo</label><input type="text" id="f_cargo"></div>
+          <div><label for="f_numFunc">Nº Funcionários</label><input type="number" id="f_numFunc" inputmode="numeric"></div>
+        </div>
+        <label for="f_setorPrincipal">Setor</label>
+        <select id="f_setorPrincipal"></select>
+        <label for="f_descAtiv">Descrição das Atividades</label>
+        <textarea id="f_descAtiv"></textarea>
+
+        <label class="switch-row" for="f_aepOn">
+          <input type="checkbox" id="f_aepOn" onchange="toggleAepBox()">
+          <span>Incluir análise ergonômica (AEP — NR-17)</span>
+        </label>
+        <div class="aep-box" id="aepBox" hidden>
+          <div class="helper" style="margin-bottom:4px">Marque <b>Sim</b> quando o fator estiver presente. Observação aparece para os itens marcados.</div>
+          <div id="aepItems"></div>
+          <label for="f_aepConclusao">Conclusão / recomendações</label>
+          <textarea id="f_aepConclusao" placeholder="Ex.: Necessária AET para o posto de montagem; adequar altura da bancada."></textarea>
+          <div class="test-note" style="margin:12px 0 0">Questionário anônimo dos funcionários: depois de adicionar a função, toque em <b>Aplicar questionário</b> na lista abaixo e entregue o aparelho ao funcionário. Pode aplicar a quantos quiser.</div>
+        </div>
+
+        <button class="btn btn-amber btn-block" onclick="addFuncao()">+ Adicionar função</button>
+        <div class="item-list" id="list-funcoes"></div>
+      </div>
+    </section>
+
+    <!-- ETAPA 4: AMBIENTES -->
+    <section class="step" data-step="3">
+      <div class="card">
+        <div class="section-title"><h2>Ambientes de Trabalho</h2><span class="count-badge" id="cnt-ambientes">0</span></div>
+        <label for="a_nome">Ambiente</label><input type="text" id="a_nome" placeholder="Ex.: Cozinha industrial">
+        <div id="chipGroups"></div>
+        <label for="a_descricao">Descrição <span class="helper">(gerada pelos botões acima — pode editar)</span></label>
+        <textarea id="a_descricao"></textarea>
+        <button class="btn btn-amber" onclick="addAmbiente()">+ Adicionar ambiente</button>
+        <div class="item-list" id="list-ambientes"></div>
+      </div>
+    </section>
+
+    <!-- ETAPA 5: GHE -->
+    <section class="step" data-step="4">
+      <div class="card">
+        <div class="section-title"><h2>Novo GHE</h2></div>
+        <label for="g_nome">GHE</label><input type="text" id="g_nome" placeholder="Ex.: Cozinheiros — Área quente">
+        <label for="g_descricao">Descrição</label><textarea id="g_descricao"></textarea>
+        <label>Funções deste GHE</label>
+        <div id="funcoesCheckList"></div>
+      </div>
+
+      <div class="card sub">
+        <div class="section-title"><h3>Riscos deste GHE</h3><span class="count-badge" id="cnt-riscosTemp">0</span></div>
+        <div class="row2">
+          <div><label for="gr_tipo">Tipo</label>
+            <select id="gr_tipo"><option>Físico</option><option>Químico</option><option>Biológico</option><option>Ergonômico</option><option>Acidente</option></select></div>
+          <div><label for="gr_fator">Fator de Risco</label><input type="text" id="gr_fator" placeholder="Ex.: Calor"></div>
+        </div>
+        <div class="row2">
+          <div><label for="gr_fonte">Fonte Geradora</label><input type="text" id="gr_fonte" placeholder="Ex.: Fogão industrial"></div>
+          <div><label for="gr_trajetoria">Trajetória</label><input type="text" id="gr_trajetoria" placeholder="Ex.: Irradiação"></div>
+        </div>
+        <label>Avaliação / medição</label>
+        <div class="seg" id="gr_avaliacao" role="group" aria-label="Tipo de avaliação">
+          <button type="button" data-v="nenhuma" class="on">Sem avaliação</button>
+          <button type="button" data-v="qualitativa">Qualitativa</button>
+          <button type="button" data-v="quantitativa">Quantitativa</button>
+        </div>
+        <div id="gr_quanti" hidden>
+          <div class="row3">
+            <div><label for="gr_valor">Valor medido</label><input type="text" id="gr_valor" placeholder="Ex.: 87"></div>
+            <div><label for="gr_unidade">Unidade</label><input type="text" id="gr_unidade" placeholder="dB(A), °C IBUTG, lux"></div>
+            <div><label for="gr_equip">Equipamento</label><input type="text" id="gr_equip" placeholder="Ex.: Dosímetro"></div>
+          </div>
+        </div>
+        <div id="gr_quali" hidden>
+          <label for="gr_descAval">Descrição da avaliação qualitativa</label>
+          <textarea id="gr_descAval" placeholder="Ex.: Contato eventual com produtos de limpeza diluídos, uso de luvas observado."></textarea>
+        </div>
+        <button class="btn btn-ghost" onclick="addRiscoTemp()">+ Adicionar risco a este GHE</button>
+        <div class="item-list" id="list-riscosTemp"></div>
+      </div>
+
+      <div class="card sub">
+        <div class="section-title"><h3>Medidas de proteção deste GHE</h3><span class="count-badge" id="cnt-medidasTemp">0</span></div>
+        <label for="gm_medida">Medida de Proteção</label><input type="text" id="gm_medida" placeholder="Ex.: Luva térmica">
+        <div class="row3">
+          <div><label for="gm_tipo">Tipo de Medida</label>
+            <select id="gm_tipo">
+              <option>1-Equipamento de Proteção Individual (EPI)</option>
+              <option>2-Equipamento de Proteção Coletiva (EPC)</option>
+              <option>3-Medida Administrativa</option>
+              <option>4-Outra</option>
+            </select></div>
+          <div><label for="gm_ca">CA</label><input type="text" id="gm_ca" inputmode="numeric"></div>
+          <div><label for="gm_periodicidade">Periodicidade de troca</label>
+            <select id="gm_periodicidade">
+              <option>1 dia</option><option>7 dias</option><option>15 dias</option><option>30 dias</option>
+              <option>60 dias</option><option>90 dias</option><option>180 dias</option><option>360 dias</option>
+              <option selected>Não se aplica</option>
+            </select></div>
+        </div>
+        <button class="btn btn-ghost" onclick="addMedidaTemp()">+ Adicionar medida a este GHE</button>
+        <div class="item-list" id="list-medidasTemp"></div>
+      </div>
+
+      <button class="btn btn-amber btn-block" onclick="addGhe()">Salvar este GHE</button>
+
+      <div class="card" style="margin-top:16px">
+        <div class="section-title"><h2>GHEs cadastrados</h2><span class="count-badge" id="cnt-ghe">0</span></div>
+        <div class="item-list" id="list-ghe"></div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ============ RELATÓRIO ============ -->
+<div id="screen-report" class="screen wrap">
+  <button class="btn btn-amber btn-block" style="margin:0 0 6px" onclick="window.print()">Salvar PDF</button>
+  <div class="helper" style="margin:0 0 14px">Na tela de impressão, escolha <b>Salvar como PDF</b>.</div>
+  <div class="report" id="reportArea"></div>
+  <button class="btn btn-ghost btn-block" onclick="backToForm()">← Voltar à visita</button>
+</div>
+
+<!-- ============ QUESTIONÁRIO DO FUNCIONÁRIO (anônimo) ============ -->
+<div id="screen-worker" class="screen">
+  <div class="worker-head">
+    <h2>Questionário sobre o seu trabalho</h2>
+    <p>É anônimo: não coloque seu nome. Suas respostas são somadas às dos colegas e ajudam a melhorar as condições de trabalho.</p>
+  </div>
+  <div class="wrap" id="workerForm">
+    <div class="card">
+      <div class="section-title"><h3>Dor ou desconforto no corpo</h3></div>
+      <div class="helper" style="margin-bottom:6px">Para cada parte do corpo, responda se sentiu dor, formigamento ou desconforto.</div>
+      <div class="body-cols"><span>Parte do corpo</span><span>Últimos 12 meses</span><span>Últimos 7 dias</span></div>
+      <div id="wNordico"></div>
+    </div>
+    <div class="card">
+      <div class="section-title"><h3>Como é o seu trabalho</h3></div>
+      <div id="wPercep"></div>
+    </div>
+    <div class="card">
+      <label for="w_sugestao" style="font-size:14px;color:var(--ink)">Tem alguma sugestão para melhorar o seu trabalho? <span class="helper">(opcional)</span></label>
+      <textarea id="w_sugestao"></textarea>
+    </div>
+    <button class="btn btn-amber btn-block" style="padding:14px" onclick="submitWorker()">Enviar respostas</button>
+    <button class="btn btn-ghost btn-block" onclick="cancelWorker()">Cancelar e devolver ao técnico</button>
+  </div>
+  <div class="thanks" id="workerThanks" hidden>
+    <h2>Obrigado!</h2>
+    <p>Suas respostas foram registradas. Devolva o aparelho ao técnico.</p>
+    <button class="btn btn-primary" onclick="nextWorker()">Próximo funcionário</button>
+    <button class="btn btn-ghost" onclick="finishWorker()">Encerrar (técnico)</button>
+  </div>
+</div>
+
+<div class="bottombar" id="bottombar" hidden>
+  <button class="btn btn-ghost" id="btnBack" onclick="prevStep()">← Voltar</button>
+  <button class="btn btn-primary" onclick="saveVisit(true)">Salvar</button>
+  <button class="btn btn-amber" id="btnNext" onclick="nextStep()">Próximo →</button>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ================= UTIL ================= */
+function uid(){return Math.random().toString(36).slice(2,9);}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function $(id){return document.getElementById(id);}
+function v(id,val){$(id).value=val||'';}
+function g(id){return $(id).value.trim();}
+function toast(msg){const t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2200);}
+
+/* ================= CHECKLIST AEP (NR-17) ================= */
+const AEP_ITENS=[
+  {k:'empe',q:'Trabalho em pé por longos períodos',d:'Sem possibilidade de alternar com a posição sentada'},
+  {k:'sentado',q:'Trabalho sentado por longos períodos',d:'Sem pausas para levantar/movimentar'},
+  {k:'postura',q:'Posturas forçadas ou inadequadas',d:'Tronco flexionado ou torcido, braços acima dos ombros, pescoço inclinado'},
+  {k:'carga',q:'Levantamento ou transporte manual de cargas',d:'Peso, frequência, distância, pega ruim'},
+  {k:'empurrar',q:'Empurrar ou puxar cargas / uso de força',d:'Carrinhos, paleteiras, ferramentas pesadas'},
+  {k:'repetitivo',q:'Movimentos repetitivos de membros superiores',d:'Ciclos curtos, mesmo gesto o tempo todo'},
+  {k:'mobiliario',q:'Mobiliário ou posto de trabalho inadequado',d:'Altura da bancada, alcance, assento sem regulagem'},
+  {k:'computador',q:'Trabalho com computador sem adequações',d:'Monitor, teclado, mouse, apoio de pés'},
+  {k:'ritmo',q:'Ritmo intenso ou pressão por metas',d:'Ritmo imposto por máquina ou produção'},
+  {k:'pausas',q:'Ausência de pausas',d:'Pausas insuficientes ou inexistentes'},
+  {k:'jornada',q:'Jornada prolongada, noturna ou em turnos',d:'Horas extras frequentes, revezamento'},
+  {k:'ambiente',q:'Condições ambientais desconfortáveis',d:'Ruído, iluminação, temperatura'}
+];
+let aepState={};
+function renderAepItems(){
+  $('aepItems').innerHTML=AEP_ITENS.map(it=>{
+    const st=aepState[it.k]||{};
+    return `<div class="aep-item">
+      <div class="aep-head"><div class="q">${esc(it.q)}<small>${esc(it.d)}</small></div>
+        <div class="seg" data-aep="${it.k}">
+          <button type="button" data-v="sim" class="${st.r==='sim'?'on':''}">Sim</button>
+          <button type="button" data-v="nao" class="${st.r==='nao'?'on':''}">Não</button>
+          <button type="button" data-v="na" class="${st.r==='na'?'on':''}">N/A</button>
+        </div></div>
+      <div class="aep-obs" ${st.r==='sim'?'':'hidden'}><input type="text" id="aepobs_${it.k}" placeholder="Observação" value="${esc(st.obs||'')}"></div>
+    </div>`;}).join('');
+  $('aepItems').querySelectorAll('.seg').forEach(seg=>{
+    seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      const k=seg.dataset.aep; collectAepObs();
+      aepState[k]=aepState[k]||{};
+      aepState[k].r = aepState[k].r===b.dataset.v ? '' : b.dataset.v;
+      renderAepItems();
+    });
+  });
+}
+function collectAepObs(){AEP_ITENS.forEach(it=>{const el=$('aepobs_'+it.k); if(el){aepState[it.k]=aepState[it.k]||{}; aepState[it.k].obs=el.value.trim();}});}
+function toggleAepBox(){ $('aepBox').hidden=!$('f_aepOn').checked; }
+
+/* ================= QUESTIONÁRIO ANÔNIMO DO FUNCIONÁRIO ================= */
+const NORDICO=[
+  {k:'pescoco',l:'Pescoço'},{k:'ombros',l:'Ombros'},{k:'costas_sup',l:'Parte de cima das costas'},
+  {k:'cotovelos',l:'Cotovelos'},{k:'punhos',l:'Punhos e mãos'},{k:'lombar',l:'Parte de baixo das costas (lombar)'},
+  {k:'quadril',l:'Quadril e coxas'},{k:'joelhos',l:'Joelhos'},{k:'tornozelos',l:'Tornozelos e pés'}
+];
+const ESCALA=['Nunca','Às vezes','Frequentemente','Sempre'];
+const PERCEP=[
+  {k:'cansaco',q:'Sinto cansaço físico ao final do dia de trabalho'},
+  {k:'ritmo',q:'Preciso trabalhar muito rápido'},
+  {k:'pausas',q:'Consigo fazer pausas quando preciso'},
+  {k:'pressao',q:'Sinto pressão excessiva por metas ou prazos'},
+  {k:'posto',q:'Meu posto de trabalho (bancada, cadeira, ferramentas) é confortável'},
+  {k:'autonomia',q:'Posso decidir como fazer meu trabalho'},
+  {k:'lideranca',q:'Tenho apoio da minha liderança quando preciso'},
+  {k:'colegas',q:'Tenho bom relacionamento com os colegas'},
+  {k:'estresse',q:'Fico estressado(a) ou ansioso(a) por causa do trabalho'}
+];
+let workerFuncId=null, wAns=null;
+function openWorker(funcId){
+  syncTopFields(); workerFuncId=funcId; resetWorkerForm();
+  $('workerForm').hidden=false; $('workerThanks').hidden=true;
+  show('screen-worker');
+}
+function resetWorkerForm(){
+  wAns={nordico:{},percep:{}}; v('w_sugestao','');
+  $('wNordico').innerHTML=NORDICO.map(r=>`<div class="body-row"><div class="r">${esc(r.l)}</div>
+    <div class="yn" data-n="${r.k}" data-p="m12"><button type="button" data-v="sim">Sim</button><button type="button" data-v="nao">Não</button></div>
+    <div class="yn" data-n="${r.k}" data-p="d7"><button type="button" data-v="sim">Sim</button><button type="button" data-v="nao">Não</button></div></div>`).join('');
+  $('wPercep').innerHTML=PERCEP.map(p=>`<div class="wq"><div class="q">${esc(p.q)}</div>
+    <div class="scale" data-p="${p.k}">${ESCALA.map((e,i)=>`<button type="button" data-v="${i}">${e}</button>`).join('')}</div></div>`).join('');
+  $('wNordico').querySelectorAll('.yn').forEach(grp=>grp.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    const k=grp.dataset.n,p=grp.dataset.p; wAns.nordico[k]=wAns.nordico[k]||{};
+    wAns.nordico[k][p]=b.dataset.v;
+    grp.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+  $('wPercep').querySelectorAll('.scale').forEach(grp=>grp.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    wAns.percep[grp.dataset.p]=+b.dataset.v;
+    grp.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+  window.scrollTo(0,0);
+}
+function submitWorker(){
+  const faltam=PERCEP.filter(p=>wAns.percep[p.k]===undefined).length;
+  if(faltam){ toast(`Faltam ${faltam} pergunta(s) sobre o trabalho`); return; }
+  const f=visit.funcoes.find(x=>x.id===workerFuncId); if(!f){ finishWorker(); return; }
+  f.aep=f.aep||{ativo:true}; f.aep.respostas=f.aep.respostas||[];
+  // Sem nome, sem data/hora: só as respostas
+  f.aep.respostas.push({nordico:wAns.nordico,percep:wAns.percep,sugestao:g('w_sugestao')});
+  saveVisit(false);
+  $('workerForm').hidden=true; $('workerThanks').hidden=false; window.scrollTo(0,0);
+}
+function nextWorker(){ resetWorkerForm(); $('workerForm').hidden=false; $('workerThanks').hidden=true; }
+function cancelWorker(){ finishWorker(); }
+function finishWorker(){ show('screen-form'); goStep(2); }
+function contaNordico(resps,k,p){ return resps.filter(r=>r.nordico[k]&&r.nordico[k][p]==='sim').length; }
+
+/* ================= CHIPS DE AMBIENTE ================= */
+const CHIP_GROUPS=[
+  {k:'iluminacao',l:'Iluminação',o:['Natural','Artificial','Mista','Insuficiente']},
+  {k:'ventilacao',l:'Ventilação',o:['Natural','Artificial (climatizado)','Mista','Insuficiente']},
+  {k:'piso',l:'Piso',o:['Liso','Antiderrapante','Irregular','Molhado ou escorregadio']},
+  {k:'ruido',l:'Ruído',o:['Baixo','Moderado','Alto']},
+  {k:'temperatura',l:'Temperatura',o:['Normal','Calor excessivo','Frio excessivo']},
+  {k:'layout',l:'Layout / Organização',o:['Adequado','Apertado','Desorganizado']},
+  {k:'sinalizacao',l:'Sinalização de Segurança',o:['Presente','Ausente','Parcial']},
+  {k:'saidas',l:'Saídas de Emergência',o:['Visíveis e desobstruídas','Obstruídas','Ausentes']},
+  {k:'extintores',l:'Extintores',o:['Presentes e visíveis','Ausentes','Vencidos (aparente)']}
+];
+$('chipGroups').innerHTML=CHIP_GROUPS.map(gr=>`<div class="chip-group-label">${gr.l}</div>
+  <div class="chips" data-chipgroup="${gr.k}">${gr.o.map(o=>`<button type="button" class="chip" data-val="${esc(o)}">${esc(o)}</button>`).join('')}</div>`).join('');
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{c.classList.toggle('sel');updateAmbienteDescricao();});
+function getSelectedChips(){const out={};document.querySelectorAll('.chips').forEach(gp=>{out[gp.dataset.chipgroup]=[...gp.querySelectorAll('.chip.sel')].map(c=>c.dataset.val);});return out;}
+function updateAmbienteDescricao(){
+  const sel=getSelectedChips(),parts=[];
+  CHIP_GROUPS.forEach(gr=>{if(sel[gr.k].length)parts.push(gr.l.replace(' / ','/')+': '+sel[gr.k].join(', '));});
+  $('a_descricao').value=parts.join('. ')+(parts.length?'.':'');
+}
+function clearChips(){document.querySelectorAll('.chip.sel').forEach(c=>c.classList.remove('sel'));}
+
+/* ================= FIREBASE =================
+   Substitua pelos dados do SEU projeto Firebase (ver INSTRUCOES.md) */
+const firebaseConfig = {
+  apiKey: "AIzaSyCwjHnhMj1B-VzE6bxCyTg-AKcIqz9_EF8",
+  authDomain: "fca-app-campo.firebaseapp.com",
+  projectId: "fca-app-campo",
+  storageBucket: "fca-app-campo.firebasestorage.app",
+  messagingSenderId: "303401263635",
+  appId: "1:303401263635:web:0e3b0626fdf027464e95e6"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+// Guarda as visitas no aparelho e sincroniza quando a internet voltar
+db.enablePersistence({synchronizeTabs:true}).catch(e=>console.warn('Cache offline indisponível:', e.code));
+const COL = 'visitas';
+
+/* ================= LOGIN ================= */
+const AUTH_MSG={'auth/invalid-credential':'E-mail ou senha incorretos.','auth/wrong-password':'E-mail ou senha incorretos.',
+  'auth/user-not-found':'E-mail ou senha incorretos.','auth/invalid-email':'E-mail inválido.',
+  'auth/too-many-requests':'Muitas tentativas. Aguarde alguns minutos e tente de novo.',
+  'auth/network-request-failed':'Sem internet. O primeiro acesso em cada aparelho precisa de conexão.'};
+$('loginForm').addEventListener('submit',e=>{
+  e.preventDefault(); $('loginError').textContent=''; $('btnLogin').disabled=true;
+  auth.signInWithEmailAndPassword(g('l_email'),$('l_senha').value)
+    .catch(err=>{ $('loginError').textContent=AUTH_MSG[err.code]||('Não foi possível entrar: '+err.message); })
+    .finally(()=>{ $('btnLogin').disabled=false; });
+});
+function logout(){ auth.signOut(); }
+auth.onAuthStateChanged(user=>{
+  $('btnVisitas').hidden=!user;
+  if(user){ $('userName').textContent='Conectado como '+user.email; v('l_senha',''); showAdmin(); }
+  else { show('screen-login'); }
+});
+
+/* ================= STATUS DE CONEXÃO ================= */
+function updateNetStatus(){
+  const el=$('netStatus');
+  if(navigator.onLine){el.textContent='Online';el.className='net-status online';}
+  else{el.textContent='Offline — salvando no aparelho';el.className='net-status offline';}
+}
+window.addEventListener('online',()=>{updateNetStatus();toast('Conexão de volta — sincronizando');});
+window.addEventListener('offline',()=>{updateNetStatus();toast('Sem internet — os dados ficam no aparelho');});
+updateNetStatus();
+
+/* ================= ESTADO ================= */
+let visit=blankVisit(), currentId=null, step=0, riscosTemp=[], medidasTemp=[], avalTipo='nenhuma';
+function blankVisit(){
+  return {empresa:'',cnpj:'',data:'',tecnico:'',
+    unidade:{email:'',telefone:'',repLegal:'',repCpf:'',emailFin:'',whatsFin:'',emailAso:'',descProcessos:''},
+    setores:[],funcoes:[],ambientes:[],ghes:[],createdAt:Date.now(),updatedAt:Date.now()};
+}
+
+/* ================= ETAPAS ================= */
+const STEPS=['Visita e Unidade','Setores','Funções','Ambientes','GHE'];
+function renderStepper(){
+  $('stepper').innerHTML=STEPS.map((s,i)=>`<button type="button" class="${i===step?'active':''} ${i<step?'done':''}" onclick="goStep(${i})"><span class="n">${i<step?'✓':i+1}</span>${s}</button>`).join('');
+}
+function goStep(n){
+  syncTopFields();
+  if(n>0 && !visit.empresa){ toast('Informe a empresa antes de seguir'); n=0; }
+  step=n;
+  document.querySelectorAll('.step').forEach(s=>s.classList.toggle('active',+s.dataset.step===step));
+  $('btnBack').style.visibility = step===0?'hidden':'visible';
+  $('btnNext').textContent = step===STEPS.length-1 ? 'Relatório / PDF' : 'Próximo →';
+  renderStepper(); renderAll();
+  window.scrollTo(0,0);
+}
+function nextStep(){
+  saveVisit(false);
+  if(step<STEPS.length-1) goStep(step+1); else showReport();
+}
+function prevStep(){ if(step>0) goStep(step-1); }
+
+/* ================= TELAS ================= */
+function show(id){
+  ['screen-login','screen-admin','screen-form','screen-report','screen-worker'].forEach(s=>$(s).classList.toggle('active',s===id));
+  $('bottombar').hidden = id!=='screen-form';
+  $('topbar').hidden = id==='screen-worker';
+  window.scrollTo(0,0);
+}
+function showAdmin(){ if($('screen-form').classList.contains('active')) saveVisit(false); show('screen-admin'); loadVisitList(); }
+function startNewVisit(){ visit=blankVisit(); currentId=null; resetTemps(); fillForm(); show('screen-form'); goStep(0); }
+function backToForm(){ show('screen-form'); goStep(step); }
+function resetTemps(){ riscosTemp=[]; medidasTemp=[]; aepState={}; $('f_aepOn').checked=false; toggleAepBox(); renderAepItems(); setAval('nenhuma'); }
+
+/* ================= FORM <-> ESTADO ================= */
+const TOP={v_empresa:'empresa',v_cnpj:'cnpj',v_data:'data',v_tecnico:'tecnico'};
+const UNI={u_email:'email',u_telefone:'telefone',u_repLegal:'repLegal',u_repCpf:'repCpf',u_emailFin:'emailFin',u_whatsFin:'whatsFin',u_emailAso:'emailAso',u_descProcessos:'descProcessos'};
+function fillForm(){ for(const id in TOP) v(id,visit[TOP[id]]); for(const id in UNI) v(id,visit.unidade[UNI[id]]); }
+function syncTopFields(){ for(const id in TOP) visit[TOP[id]]=g(id); for(const id in UNI) visit.unidade[UNI[id]]=g(id); }
+
+/* ================= SETORES ================= */
+function addSetor(){
+  const setor=g('s_setor'); if(!setor){toast('Informe o setor');return;}
+  visit.setores.push({id:uid(),setor,esocial:g('s_esocial')});
+  v('s_setor',''); v('s_esocial',''); renderAll(); toast('Setor adicionado'); $('s_setor').focus();
+}
+function removeSetor(id){visit.setores=visit.setores.filter(x=>x.id!==id);renderAll();}
+
+/* ================= FUNÇÕES ================= */
+function addFuncao(){
+  const funcao=g('f_funcao'); if(!funcao){toast('Informe a função');return;}
+  const setor=$('f_setorPrincipal').value; if(!setor){toast('Selecione o setor da função');return;}
+  collectAepObs();
+  const aep={ativo:$('f_aepOn').checked};
+  if(aep.ativo){ aep.itens=JSON.parse(JSON.stringify(aepState)); aep.conclusao=g('f_aepConclusao'); }
+  visit.funcoes.push({id:uid(),funcao,cargo:g('f_cargo'),numFunc:g('f_numFunc'),setorPrincipal:setor,descAtiv:g('f_descAtiv'),aep});
+  ['f_funcao','f_cargo','f_numFunc','f_descAtiv','f_aepConclusao'].forEach(i=>v(i,''));
+  aepState={}; $('f_aepOn').checked=false; toggleAepBox(); renderAepItems();
+  renderAll(); toast('Função adicionada'); window.scrollTo({top:$('list-funcoes').offsetTop-140});
+}
+function removeFuncao(id){visit.funcoes=visit.funcoes.filter(x=>x.id!==id);renderAll();}
+function aepResumo(f){
+  const aep=f.aep;
+  if(!aep||!aep.ativo) return '';
+  const it=aep.itens||{}; const sim=AEP_ITENS.filter(a=>it[a.k]&&it[a.k].r==='sim').length;
+  const n=(aep.respostas||[]).length;
+  return (sim?`<span class="tag warn">AEP: ${sim} fator(es) presente(s)</span>`:`<span class="tag ok">AEP: sem fatores</span>`)+
+    `<span class="tag">${n} questionário(s)</span><br><button type="button" class="btn-quest" onclick="openWorker('${f.id}')">Aplicar questionário anônimo</button>`;
+}
+
+/* ================= AMBIENTES ================= */
+function addAmbiente(){
+  const nome=g('a_nome'); if(!nome){toast('Informe o ambiente');return;}
+  visit.ambientes.push({id:uid(),nome,caracteristicas:getSelectedChips(),descricao:g('a_descricao')});
+  v('a_nome',''); v('a_descricao',''); clearChips(); renderAll(); toast('Ambiente adicionado');
+}
+function removeAmbiente(id){visit.ambientes=visit.ambientes.filter(x=>x.id!==id);renderAll();}
+
+/* ================= GHE ================= */
+function setAval(t){
+  avalTipo=t;
+  $('gr_avaliacao').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.v===t));
+  $('gr_quanti').hidden=t!=='quantitativa'; $('gr_quali').hidden=t!=='qualitativa';
+}
+$('gr_avaliacao').querySelectorAll('button').forEach(b=>b.onclick=()=>setAval(b.dataset.v));
+function avalTexto(r){
+  if(r.avaliacao==='quantitativa') return `Quantitativa: ${esc(r.valor||'-')} ${esc(r.unidade||'')}${r.equip?' ('+esc(r.equip)+')':''}`;
+  if(r.avaliacao==='qualitativa') return `Qualitativa${r.descAval?': '+esc(r.descAval):''}`;
+  return 'Sem avaliação';
+}
+function addRiscoTemp(){
+  const fator=g('gr_fator'); if(!fator){toast('Informe o fator de risco');return;}
+  const r={id:uid(),tipo:$('gr_tipo').value,fator,fonte:g('gr_fonte'),trajetoria:g('gr_trajetoria'),avaliacao:avalTipo};
+  if(avalTipo==='quantitativa'){ if(!g('gr_valor')){toast('Informe o valor medido');return;} r.valor=g('gr_valor'); r.unidade=g('gr_unidade'); r.equip=g('gr_equip'); }
+  if(avalTipo==='qualitativa') r.descAval=g('gr_descAval');
+  riscosTemp.push(r);
+  ['gr_fator','gr_fonte','gr_trajetoria','gr_valor','gr_unidade','gr_equip','gr_descAval'].forEach(i=>v(i,''));
+  setAval('nenhuma'); renderTemps(); toast('Risco adicionado ao GHE');
+}
+function removeRiscoTemp(id){riscosTemp=riscosTemp.filter(x=>x.id!==id);renderTemps();}
+function addMedidaTemp(){
+  const medida=g('gm_medida'); if(!medida){toast('Informe a medida');return;}
+  medidasTemp.push({id:uid(),medida,tipo:$('gm_tipo').value,ca:g('gm_ca'),periodicidade:$('gm_periodicidade').value});
+  v('gm_medida',''); v('gm_ca',''); renderTemps(); toast('Medida adicionada ao GHE');
+}
+function removeMedidaTemp(id){medidasTemp=medidasTemp.filter(x=>x.id!==id);renderTemps();}
+function renderTemps(){
+  $('cnt-riscosTemp').textContent=riscosTemp.length;
+  $('list-riscosTemp').innerHTML=riscosTemp.map(r=>`<div class="item"><div class="item-top"><div>
+      <span class="tag">${esc(r.tipo)}</span> <span class="item-title">${esc(r.fator)}</span>
+      <div class="item-meta">${r.fonte?'Fonte: '+esc(r.fonte)+' · ':''}${r.trajetoria?'Trajetória: '+esc(r.trajetoria)+' · ':''}${avalTexto(r)}</div></div>
+      <button class="btn-danger" onclick="removeRiscoTemp('${r.id}')">remover</button></div></div>`).join('')||'<p class="empty-note">Nenhum risco adicionado a este GHE.</p>';
+  $('cnt-medidasTemp').textContent=medidasTemp.length;
+  $('list-medidasTemp').innerHTML=medidasTemp.map(m=>`<div class="item"><div class="item-top"><div>
+      <div class="item-title">${esc(m.medida)}</div><div class="item-meta">${esc(m.tipo)}${m.ca?' · CA '+esc(m.ca):''} · Troca: ${esc(m.periodicidade)}</div></div>
+      <button class="btn-danger" onclick="removeMedidaTemp('${m.id}')">remover</button></div></div>`).join('')||'<p class="empty-note">Nenhuma medida adicionada a este GHE.</p>';
+}
+function addGhe(){
+  const nome=g('g_nome'); if(!nome){toast('Informe o nome do GHE');return;}
+  const checked=[...document.querySelectorAll('.ghe-func-check:checked')].map(c=>c.value);
+  const funcoesVinculadas=visit.funcoes.filter(f=>checked.includes(f.id)).map(f=>f.funcao);
+  visit.ghes.push({id:uid(),nome,descricao:g('g_descricao'),funcoesVinculadas,riscos:riscosTemp,medidas:medidasTemp});
+  v('g_nome',''); v('g_descricao',''); riscosTemp=[]; medidasTemp=[];
+  renderAll(); saveVisit(false); toast('GHE salvo'); window.scrollTo({top:$('list-ghe').offsetTop-160});
+}
+function removeGhe(id){visit.ghes=visit.ghes.filter(x=>x.id!==id);renderAll();}
+
+/* ================= RENDER ================= */
+function renderAll(){
+  $('cnt-setores').textContent=visit.setores.length;
+  $('list-setores').innerHTML=visit.setores.map(s=>`<div class="item"><div class="item-top"><div>
+      <div class="item-title">${esc(s.setor)}</div><div class="item-meta">${s.esocial?'e-Social: '+esc(s.esocial):''}</div></div>
+      <button class="btn-danger" onclick="removeSetor('${s.id}')">remover</button></div></div>`).join('')||'<p class="empty-note">Nenhum setor adicionado ainda.</p>';
+
+  const cur=$('f_setorPrincipal').value;
+  $('f_setorPrincipal').innerHTML=(visit.setores.length?'<option value="">Selecione o setor</option>':'<option value="">Cadastre setores na etapa anterior</option>')+
+    visit.setores.map(s=>`<option value="${esc(s.setor)}" ${s.setor===cur?'selected':''}>${esc(s.setor)}</option>`).join('');
+
+  $('cnt-funcoes').textContent=visit.funcoes.length;
+  $('list-funcoes').innerHTML=visit.funcoes.map(f=>`<div class="item"><div class="item-top"><div>
+      <div class="item-title">${esc(f.funcao)}</div>
+      <div class="item-meta">${f.cargo?esc(f.cargo)+' · ':''}Setor: ${esc(f.setorPrincipal||'-')}${f.numFunc?' · '+esc(f.numFunc)+' func.':''}</div>
+      ${aepResumo(f)}</div>
+      <button class="btn-danger" onclick="removeFuncao('${f.id}')">remover</button></div></div>`).join('')||'<p class="empty-note">Nenhuma função adicionada ainda.</p>';
+
+  $('cnt-ambientes').textContent=visit.ambientes.length;
+  $('list-ambientes').innerHTML=visit.ambientes.map(a=>`<div class="item"><div class="item-top"><div>
+      <div class="item-title">${esc(a.nome)}</div><div class="item-meta">${esc(a.descricao)}</div></div>
+      <button class="btn-danger" onclick="removeAmbiente('${a.id}')">remover</button></div></div>`).join('')||'<p class="empty-note">Nenhum ambiente adicionado ainda.</p>';
+
+  const prev=[...document.querySelectorAll('.ghe-func-check:checked')].map(c=>c.value);
+  $('funcoesCheckList').innerHTML=visit.funcoes.length?visit.funcoes.map(f=>`<label class="checkrow"><input type="checkbox" class="ghe-func-check" value="${f.id}" ${prev.includes(f.id)?'checked':''}> ${esc(f.funcao)}<span class="helper">&nbsp;· ${esc(f.setorPrincipal||'')}</span></label>`).join('')
+    :'<p class="empty-note">Cadastre funções na etapa Funções para vincular.</p>';
+  renderTemps();
+
+  $('cnt-ghe').textContent=visit.ghes.length;
+  $('list-ghe').innerHTML=visit.ghes.map(gh=>{const rs=gh.riscos||[],ms=gh.medidas||[];return `<div class="item"><div class="item-top"><div>
+      <div class="item-title">${esc(gh.nome)}</div>
+      <div class="item-meta">${rs.length} risco(s) · ${ms.length} medida(s)${gh.funcoesVinculadas.length?' · Funções: '+esc(gh.funcoesVinculadas.join(', ')):''}</div>
+      ${rs.map(r=>`<span class="tag">${esc(r.fator)}</span>`).join('')}</div>
+      <button class="btn-danger" onclick="removeGhe('${gh.id}')">remover</button></div></div>`;}).join('')||'<p class="empty-note">Nenhum GHE cadastrado ainda.</p>';
+}
+
+/* ================= SALVAR / CARREGAR (Firestore) ================= */
+function isEmpty(){ return !visit.empresa && !visit.cnpj && !['setores','funcoes','ambientes','ghes'].some(k=>visit[k].length); }
+function saveVisit(showMsg){
+  syncTopFields();
+  if(!currentId && isEmpty()){ if(showMsg) toast('Preencha algo antes de salvar'); return; }
+  const user=auth.currentUser; if(!user){ toast('Sessão encerrada. Entre de novo.'); return; }
+  visit.updatedAt=Date.now();
+  if(!visit.criadoPor) visit.criadoPor=user.email;
+  visit.alteradoPor=user.email;
+  // ID gerado no aparelho: salvar funciona mesmo sem internet
+  const ref=currentId?db.collection(COL).doc(currentId):db.collection(COL).doc();
+  currentId=ref.id;
+  ref.set(JSON.parse(JSON.stringify(visit))).catch(e=>{console.error(e);toast('Erro ao salvar: '+e.message);});
+  if(showMsg) toast(navigator.onLine?'Visita salva':'Salva no aparelho — sincroniza quando voltar a internet');
+}
+async function loadVisitList(){
+  const el=$('visitList'); el.innerHTML='<p class="empty-note">Carregando...</p>';
+  try{
+    const snap=await db.collection(COL).orderBy('updatedAt','desc').get();
+    el.innerHTML=snap.docs.map(doc=>{const d=doc.data();
+      const pend=doc.metadata.hasPendingWrites?' <span class="tag warn">aguardando sincronizar</span>':'';
+      return `<div class="item"><div class="item-top"><div>
+      <div class="item-title">${esc(d.empresa||'(sem nome)')}${pend}</div>
+      <div class="item-meta">${esc(d.data||new Date(d.updatedAt).toLocaleDateString('pt-BR'))}${d.tecnico?' · '+esc(d.tecnico):''} · ${(d.ghes||[]).length} GHE(s)</div></div>
+      <button class="btn btn-ghost" style="margin:0;padding:5px 10px;font-size:12px" onclick="openVisit('${doc.id}')">abrir</button></div></div>`;}).join('')||'<p class="empty-note">Nenhuma visita salva ainda.</p>';
+  }catch(e){
+    console.error(e);
+    el.innerHTML='<p class="empty-note">Não foi possível carregar as visitas. Verifique a internet ou a configuração do Firebase (INSTRUCOES.md).</p>';
+  }
+}
+async function openVisit(id){
+  try{
+    const doc=await db.collection(COL).doc(id).get();
+    if(!doc.exists){toast('Visita não encontrada');return;}
+    visit=Object.assign(blankVisit(),doc.data()); currentId=id;
+    resetTemps(); fillForm(); show('screen-form'); goStep(0);
+  }catch(e){console.error(e);toast('Erro ao abrir a visita');}
+}
+
+/* ================= RELATÓRIO ================= */
+function questReport(resps){
+  const n=resps.length; if(!n) return '<br><i>Questionário dos funcionários:</i> não aplicado.';
+  let h=`<br><i>Questionário dos funcionários (anônimo):</i> ${n} resposta(s).`;
+  if(n<3) h+=` <span class="tag warn">menos de 3 respostas: anonimato limitado</span>`;
+  h+=`<div class="pr-table-wrap"><table class="pr-table"><tr><th>Dor/desconforto</th><th>12 meses</th><th>7 dias</th></tr>`+
+    NORDICO.map(r=>{const a=contaNordico(resps,r.k,'m12'),b=contaNordico(resps,r.k,'d7');
+      return (a||b)?`<tr><td>${esc(r.l)}</td><td class="n">${a}/${n}</td><td class="n">${b}/${n}</td></tr>`:'';}).join('')+
+    `</table></div>`;
+  if(!NORDICO.some(r=>contaNordico(resps,r.k,'m12')||contaNordico(resps,r.k,'d7'))) h=h.replace(/<div class="pr-table-wrap">[\s\S]*<\/table><\/div>/,'<br>Nenhuma queixa de dor ou desconforto.');
+  h+=`<div class="pr-table-wrap"><table class="pr-table"><tr><th>Percepção do trabalho</th>${ESCALA.map(e=>`<th>${e}</th>`).join('')}</tr>`+
+    PERCEP.map(p=>`<tr><td>${esc(p.q)}</td>${ESCALA.map((e,i)=>`<td class="n">${resps.filter(r=>r.percep[p.k]===i).length}</td>`).join('')}</tr>`).join('')+
+    `</table></div>`;
+  const sug=resps.map(r=>r.sugestao).filter(Boolean);
+  if(sug.length) h+=`<i>Sugestões:</i><ul class="pr-sublist">${sug.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`;
+  return h;
+}
+function showReport(){
+  syncTopFields(); saveVisit(false);
+  const u=visit.unidade, it=(l,val)=>`<div class="pr-item"><b>${l}:</b> ${esc(val||'-')}</div>`;
+  let h=`<div class="pr-h1">Levantamento de Campo — SST</div>
+  <div class="pr-sub">FCA &amp; Sabaini Engenharia, Perícias e Serviços · Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+  <div class="pr-section"><h3>Dados da visita</h3>${it('Empresa',visit.empresa)}${it('CNPJ',visit.cnpj)}${it('Data',visit.data)}${it('Técnico',visit.tecnico)}</div>
+  <div class="pr-section"><h3>Unidade</h3>${it('E-mail',u.email)}${it('Telefone',u.telefone)}
+    <div class="pr-item"><b>Representante Legal:</b> ${esc(u.repLegal||'-')} (CPF: ${esc(u.repCpf||'-')})</div>
+    <div class="pr-item"><b>Financeiro:</b> ${esc(u.emailFin||'-')} / ${esc(u.whatsFin||'-')}</div>
+    ${it('E-mail Liberação ASOs',u.emailAso)}${u.descProcessos?it('Descrição dos Processos',u.descProcessos):''}</div>`;
+  if(visit.setores.length) h+=`<div class="pr-section"><h3>Setores</h3>`+visit.setores.map(s=>`<div class="pr-item"><b>${esc(s.setor)}</b>${s.esocial?' — e-Social: '+esc(s.esocial):''}</div>`).join('')+`</div>`;
+  if(visit.funcoes.length) h+=`<div class="pr-section"><h3>Funções</h3>`+visit.funcoes.map(f=>{
+    let a='';
+    if(f.aep&&f.aep.ativo){
+      const itens=f.aep.itens||{}; const pres=AEP_ITENS.filter(x=>itens[x.k]&&itens[x.k].r==='sim');
+      a=`<br><i>Análise ergonômica (AEP):</i> ${pres.length?'':'nenhum fator presente'}`+
+        (pres.length?`<ul class="pr-sublist">${pres.map(x=>`<li>${esc(x.q)}${itens[x.k].obs?' — '+esc(itens[x.k].obs):''}</li>`).join('')}</ul>`:'')+
+        (f.aep.conclusao?`<i>Conclusão:</i> ${esc(f.aep.conclusao)}`:'')+
+        questReport(f.aep.respostas||[]);
+    }
+    return `<div class="pr-item"><b>${esc(f.funcao)}</b>${f.cargo?' — '+esc(f.cargo):''} · Setor: ${esc(f.setorPrincipal||'-')}${f.numFunc?' · '+esc(f.numFunc)+' func.':''}${f.descAtiv?'<br>'+esc(f.descAtiv):''}${a}</div>`;}).join('')+`</div>`;
+  if(visit.ambientes.length) h+=`<div class="pr-section"><h3>Ambientes de trabalho</h3>`+visit.ambientes.map(a=>`<div class="pr-item"><b>${esc(a.nome)}</b><br>${esc(a.descricao||'-')}</div>`).join('')+`</div>`;
+  if(visit.ghes.length) h+=`<div class="pr-section"><h3>GHE — Grupos Homogêneos de Exposição</h3>`+visit.ghes.map(gh=>{
+    const rs=gh.riscos||[],ms=gh.medidas||[];
+    return `<div class="pr-item"><b>${esc(gh.nome)}</b>${gh.descricao?'<br>'+esc(gh.descricao):''}
+      ${gh.funcoesVinculadas.length?'<br><i>Funções:</i> '+esc(gh.funcoesVinculadas.join(', ')):''}
+      ${rs.length?`<br><i>Riscos:</i><ul class="pr-sublist">${rs.map(r=>`<li>[${esc(r.tipo)}] <b>${esc(r.fator)}</b>${r.fonte?' · Fonte: '+esc(r.fonte):''}${r.trajetoria?' · Trajetória: '+esc(r.trajetoria):''} · ${avalTexto(r)}</li>`).join('')}</ul>`:''}
+      ${ms.length?`<i>Medidas de proteção:</i><ul class="pr-sublist">${ms.map(m=>`<li>${esc(m.medida)} — ${esc(m.tipo)}${m.ca?' · CA '+esc(m.ca):''} · Troca: ${esc(m.periodicidade)}</li>`).join('')}</ul>`:''}
+    </div>`;}).join('')+`</div>`;
+  $('reportArea').innerHTML=h;
+  show('screen-report');
+}
+
+/* ================= INÍCIO ================= */
+renderAepItems(); renderTemps();
+// A tela inicial (login ou visitas) é decidida por onAuthStateChanged, acima
+
+/* ================= PWA: service worker ================= */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW não registrado:',e)));
+}
+</script>
+</body>
+</html>
