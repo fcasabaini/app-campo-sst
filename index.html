@@ -60,7 +60,11 @@ h1,h2,h3{font-family:var(--font-display);font-weight:700;color:var(--navy-deep);
   top:env(safe-area-inset-top,0px);z-index:50;display:flex;align-items:center;
   justify-content:space-between;gap:10px;border-bottom:3px solid var(--amber);
 }
+.topbar .brand-wrap{display:flex;align-items:center;gap:12px;min-width:0;}
+.topbar .logo-chip{background:#fff;border-radius:6px;padding:4px 8px;display:flex;flex:none;}
+.topbar .logo-chip img{height:30px;width:auto;display:block;}
 .topbar .brand{font-size:12px;letter-spacing:.3px;color:#b7c0d1;}
+@media (max-width:480px){.topbar .brand{display:none;}.topbar h1{font-size:15px;}.topbar .logo-chip img{height:26px;}}
 .topbar h1{color:#fff;font-size:17px;margin:0;font-family:var(--font-body);font-weight:600;}
 .topbar-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
 .topbar button{background:none;border:1px solid #3a4864;color:#cfd6e3;padding:6px 10px;border-radius:var(--radius);font-size:12px;cursor:pointer;}
@@ -68,6 +72,14 @@ h1,h2,h3{font-family:var(--font-display);font-weight:700;color:var(--navy-deep);
 .net-status.online{background:#1f4d35;color:#bfe6cf;}
 .net-status.offline{background:#6b2a1d;color:#f5d3c9;}
 .login{max-width:380px;margin:48px auto;}
+.login-logo{display:block;width:220px;max-width:70%;margin:4px auto 18px;}
+.pr-logo{height:56px;width:auto;display:block;margin-bottom:10px;}
+.btn-del{background:none;color:var(--danger);border:1px solid var(--danger);margin:0;padding:5px 10px;font-size:12px;border-radius:var(--radius);cursor:pointer;font-family:inherit;}
+.btn-del.solid{background:var(--danger);color:#fff;}
+.item-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:none;}
+.del-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);}
+.del-row span{font-size:13px;color:var(--danger);min-width:0;}
+.del-row div{display:flex;gap:6px;}
 .login-error{color:var(--danger);font-size:13px;margin-top:8px;min-height:18px;}
 .user-line{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);margin-bottom:12px;}
 .user-line button{background:none;border:none;color:var(--ink-soft);text-decoration:underline;cursor:pointer;font-size:13px;padding:0;font-family:inherit;}
@@ -208,9 +220,12 @@ textarea{resize:vertical;min-height:60px;}
 <body>
 
 <div class="topbar" id="topbar">
-  <div>
-    <div class="brand">FCA &amp; Sabaini Engenharia</div>
-    <h1>Levantamento de Campo — SST</h1>
+  <div class="brand-wrap">
+    <span class="logo-chip"><img src="icons/logo.png" alt="FCA &amp; Sabaini"></span>
+    <div>
+      <div class="brand">FCA &amp; Sabaini Engenharia</div>
+      <h1>Levantamento de Campo — SST</h1>
+    </div>
   </div>
   <div class="topbar-right">
     <span id="netStatus" class="net-status online">Online</span>
@@ -221,6 +236,7 @@ textarea{resize:vertical;min-height:60px;}
 <!-- ============ LOGIN ============ -->
 <div id="screen-login" class="screen wrap">
   <form class="card login" id="loginForm">
+    <img class="login-logo" src="icons/logo.png" alt="FCA &amp; Sabaini">
     <div class="section-title"><h2>Entrar</h2></div>
     <div class="helper">Acesso restrito à equipe FCA &amp; Sabaini.</div>
     <label for="l_email">E-mail</label><input type="email" id="l_email" autocomplete="username" required>
@@ -826,12 +842,30 @@ async function loadVisitList(){
       return `<div class="item"><div class="item-top"><div>
       <div class="item-title">${esc(d.empresa||'(sem nome)')}${pend}</div>
       <div class="item-meta">${esc(d.data||new Date(d.updatedAt).toLocaleDateString('pt-BR'))}${d.tecnico?' · '+esc(d.tecnico):''} · ${(d.ghes||[]).length} GHE(s)</div></div>
-      <button class="btn btn-ghost" style="margin:0;padding:5px 10px;font-size:12px" onclick="openVisit('${doc.id}')">abrir</button></div></div>`;}).join('')||'<p class="empty-note">Nenhuma visita salva ainda.</p>';
+      <div class="item-actions" id="act-${doc.id}">
+        <button class="btn btn-ghost" style="margin:0;padding:5px 10px;font-size:12px" onclick="openVisit('${doc.id}')">abrir</button>
+        <button class="btn-del" onclick="askDelete('${doc.id}')">excluir</button>
+      </div></div>
+      <div class="del-row" id="del-${doc.id}" hidden><span>Excluir esta visita para toda a equipe? Não dá para desfazer.</span>
+        <div><button class="btn btn-ghost" style="margin:0;padding:5px 10px;font-size:12px" onclick="$('del-${doc.id}').hidden=true">cancelar</button>
+        <button class="btn-del solid" onclick="deleteVisit('${doc.id}')">sim, excluir</button></div></div></div>`;}).join('')||'<p class="empty-note">Nenhuma visita salva ainda.</p>';
   }catch(e){
     console.error(e);
     el.innerHTML='<p class="empty-note">Não foi possível carregar as visitas. Verifique a internet ou a configuração do Firebase (INSTRUCOES.md).</p>';
   }
 }
+/* ================= EXCLUIR VISITA ================= */
+function askDelete(id){
+  document.querySelectorAll('.del-row').forEach(r=>r.hidden=true);
+  const row=$('del-'+id); if(row) row.hidden=false;
+}
+function deleteVisit(id){
+  // Com o cache offline, some da lista na hora e é apagada na nuvem quando houver conexão
+  db.collection(COL).doc(id).delete().catch(e=>{console.error(e);toast('Erro ao excluir: '+e.message);});
+  if(currentId===id){ currentId=null; visit=blankVisit(); }
+  toast('Visita excluída'); loadVisitList();
+}
+
 async function openVisit(id){
   try{
     const doc=await db.collection(COL).doc(id).get();
@@ -861,7 +895,7 @@ function questReport(resps){
 function showReport(){
   syncTopFields(); saveVisit(false);
   const u=visit.unidade, it=(l,val)=>`<div class="pr-item"><b>${l}:</b> ${esc(val||'-')}</div>`;
-  let h=`<div class="pr-h1">Levantamento de Campo — SST</div>
+  let h=`<img class="pr-logo" src="icons/logo.png" alt="FCA &amp; Sabaini"><div class="pr-h1">Levantamento de Campo — SST</div>
   <div class="pr-sub">FCA &amp; Sabaini Engenharia, Perícias e Serviços · Gerado em ${new Date().toLocaleString('pt-BR')}</div>
   <div class="pr-section"><h3>Dados da visita</h3>${it('Empresa',visit.empresa)}${it('CNPJ',visit.cnpj)}${it('Data',visit.data)}${it('Técnico',visit.tecnico)}</div>
   <div class="pr-section"><h3>Unidade</h3>${it('E-mail',u.email)}${it('Telefone',u.telefone)}

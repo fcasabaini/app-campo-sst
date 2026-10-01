@@ -100,4 +100,4 @@ Copie a pasta inteira para o diretório servido e adicione o domínio em **Domí
 - O **primeiro login** em cada aparelho precisa de internet. Depois, o login fica guardado
 
 ## 🔄 Publicar uma nova versão
-Ao alterar o `index.html`, aumente o número em `const VERSION = 'campo-sst-v2'` no `sw.js` (v3, v4…). Os aparelhos pegam a versão nova na próxima abertura com internet.
+Ao alterar o `index.html`, aumente o número em `const VERSION = 'campo-sst-v4'` no `sw.js` (v3, v4…). Os aparelhos pegam a versão nova na próxima abertura com internet.

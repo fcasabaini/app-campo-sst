@@ -2,7 +2,7 @@
    Guarda o "esqueleto" do app no aparelho para abrir sem internet.
    Os dados das visitas NÃO passam por aqui: ficam no cache offline do Firestore.
    Ao publicar uma nova versão do index.html, aumente o número em VERSION. */
-const VERSION = 'campo-sst-v3';
+const VERSION = 'campo-sst-v4';
 const APP_SHELL = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const APP_SHELL = [
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
   './icons/apple-touch-icon.png',
+  './icons/logo.png',
   'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js',
   'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js'
